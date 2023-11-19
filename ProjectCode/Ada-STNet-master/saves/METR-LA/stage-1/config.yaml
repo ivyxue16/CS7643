@@ -1,0 +1,64 @@
+data:
+  batch-size: 4
+  dataset: METR-LA
+  input_dim: 2
+  output_dim: 1
+device: 0
+early_stop_steps: 20
+epochs: 100
+loss:
+  name: MaskedMAELoss
+model:
+  graph_learner:
+    dropout: 0.0
+    learn_macro: true
+    learn_micro: false
+    n_hist: 12
+    n_in: 2
+    node_dim: 6
+  predictor:
+    dropout: 0.3
+    kernel_size: 2
+    n_blocks: 4
+    n_dilations: 40
+    n_ends: 640
+    n_in: 2
+    n_layers: 2
+    n_out: 1
+    n_pred: 12
+    n_residuals: 40
+    n_skips: 320
+name: stage-1
+optimizer:
+  Adam:
+    amsgrad: true
+    lr: 0.001
+    weight_decay: 0.0001
+  RMSprop:
+    lr: 0.001
+    weight_decay: 0.0001
+  name: Adam
+scheduler:
+  CosineAnnealingLR:
+    T_max: 5
+    eta_min: 1.0e-07
+  MultiStepLR:
+    gamma: 0.3
+    milestones:
+    - 2
+    - 10
+    - 20
+    - 50
+  ReduceLROnPlateau:
+    factor: 0.2
+    min_lr: 1.0e-05
+    patience: 5
+    threshold: 0.005
+  StepLR:
+    gamma: 0.1
+    step_size: 10
+  name: null
+trainer:
+  max_grad_norm: 3
+  reg_norm: 2
+  reg_weight_decay: 0.001
