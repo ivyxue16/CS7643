@@ -99,7 +99,7 @@ def data_preparate(args, device):
     gso = gso.astype(dtype=np.float32)
     args.gso = torch.from_numpy(gso).to(device)
 
-    dataset_path = './data'
+    dataset_path = 'Documents/Gatech_OMSCS/Courses/CS7643_DeepLearning/CS7643DL_2023Fall/Project/data'
     dataset_path = os.path.join(dataset_path, args.dataset)
     data_col = pd.read_csv(os.path.join(dataset_path, 'vel.csv')).shape[0]
     # recommended dataset split rate as train: val: test = 60: 20: 20, 70: 15: 15 or 80: 10: 10
