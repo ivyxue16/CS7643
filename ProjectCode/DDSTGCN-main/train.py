@@ -11,7 +11,7 @@ from engine import trainer
 parser = argparse.ArgumentParser()
 parser.add_argument('--device',type=str,default='0',help='graphics card')
 parser.add_argument('--data',type=str,default='data/METR-LA',help='data path')
-parser.add_argument('--adjdata',type=str,default='data/METR-LA/adj_mx.pkl',help='adj data path')
+parser.add_argument('--adjdata',type=str,default='data/sensor_graph/adj_mx.pkl',help='adj data path')
 parser.add_argument('--seq_length',type=int,default=12,help='prediction length')
 parser.add_argument('--nhid',type=int,default=40,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
@@ -22,7 +22,7 @@ parser.add_argument('--dropout',type=float,default=0.3,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
 parser.add_argument('--clip', type=int, default=3, help='Gradient Clipping')
 parser.add_argument('--lr_decay_rate', type=float, default=0.97, help='learning rate')
-parser.add_argument('--epochs',type=int,default=20,help='')
+parser.add_argument('--epochs',type=int,default=200,help='')
 parser.add_argument('--top_k',type=int,default=4,help='top-k sampling')
 parser.add_argument('--print_every',type=int,default=10,help='')
 parser.add_argument('--save',type=str,default='./garage/metr-la',help='save path')
@@ -45,11 +45,19 @@ def main():
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.device
 
-    adj_mx = util.load_adj(args.adjdata)
-    supports = [torch.tensor(i).cuda() for i in adj_mx]
-    H_a, H_b, H_T_new, lwjl, G0, G1, indices, G0_all, G1_all = util.load_hadj(args.adjdata, args.top_k)
+    adj_mx = util.load_adj(args.adjdata)  # (207,207)
+    supports = [torch.tensor(i).cuda() for i in adj_mx] 
+    H_a, H_b, H_T_new, lwjl, G0, G1, indices, G0_all, G1_all = util.load_hadj(args.adjdata, args.top_k)  
 
-    dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)
+    # H_a: (1083, 207)
+    # H_b: (1083, 207)
+    # H_T_new: (207, 1083)
+    # lwjl: (64, 1, 1083, 1)
+    # G0: (1083, 207)
+    # G1: (1083, 207)
+    
+
+    dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)  
     scaler = dataloader['scaler']
 
     lwjl = (((lwjl.t()).unsqueeze(0)).unsqueeze(3)).repeat(args.batch_size, 1, 1, 1)
@@ -124,7 +132,7 @@ def main():
         mvalid_rmse = np.mean(valid_rmse)
         his_loss.append(mvalid_loss)
 
-        log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, \nValid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}/epoch'
+        log = 'Epoch: {:03d}, Train Loss: {:.4f}, Train MAPE: {:.4f}, Train RMSE: {:.4f}, \nValid Loss: {:.4f}, Valid MAPE: {:.4f}, Valid RMSE: {:.4f}, Training Time: {:.4f}s/epoch'
         print(log.format(i, mtrain_loss, mtrain_mape, mtrain_rmse, mvalid_loss, mvalid_mape, mvalid_rmse, (t2 - t1)),flush=True)
         torch.save(engine.model.state_dict(), args.save+"_epoch_"+str(i)+"_"+str(round(mvalid_loss,2))+".pth")
 

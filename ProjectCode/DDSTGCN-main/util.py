@@ -56,13 +56,13 @@ class StandardScaler():
 
 
 def sym_adj(adj):
-    adj = sp.coo_matrix(adj)
-    rowsum = np.array(adj.sum(1))
-    d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    adj = sp.coo_matrix(adj)            # (207,207)
+    rowsum = np.array(adj.sum(1))       # (207,1)
+    d_inv_sqrt = np.power(rowsum, -0.5).flatten()  
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.   # (207,)
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # (207,207)
     # https://github.com/tkipf/gcn/issues/142
-    return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).astype(np.float32).todense()
+    return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).astype(np.float32).todense()    # (207,207)
 
 
 def load_pickle(pickle_file):
@@ -83,14 +83,17 @@ def load_adj(pkl_filename):
         _, _, adj_mx = load_pickle(pkl_filename)
     except:
         adj_mx = load_pickle(pkl_filename)
-    adj = [sym_adj(adj_mx), sym_adj(np.transpose(adj_mx))]
+    adj = [sym_adj(adj_mx), sym_adj(np.transpose(adj_mx))]  # (207,207)
     return adj
 
 
 def load_dataset(dataset_dir, batch_size, valid_batch_size= None, test_batch_size=None):
     data = {}
-    for category in ['train', 'val', 'test']:
-        cat_data = np.load(os.path.join(dataset_dir, category + '.npz'))
+    for category in ['train', 'val', 'test']: # 7:1:2
+        # train: (23974, 12, 207, 2) 7
+        # val: (3425, 12, 207, 2) 1
+        # test: (6850, 12, 207, 2) 2
+        cat_data = np.load(os.path.join(dataset_dir, category + '.npz')) 
         data['x_' + category] = cat_data['x']
         data['y_' + category] = cat_data['y']
     scaler = StandardScaler(mean=data['x_train'][..., 0].mean(), std=data['x_train'][..., 0].std())
@@ -165,42 +168,42 @@ def load_hadj(pkl_filename,top_k):
     except:
         adj_mx = load_pickle(pkl_filename)
 
-    hadj = adj_mx
+    hadj = adj_mx                                     # (207,207)
 
     top = top_k
 
-    hadj = hadj - np.identity(hadj.shape[0])
-    hadj = torch.from_numpy(hadj.astype(np.float32))
+    hadj = hadj - np.identity(hadj.shape[0])          # (207,207)
+    hadj = torch.from_numpy(hadj.astype(np.float32))  # (207,207)
     # 参数K，当graph转化为hypergraph时，因为边的数量太多，会导致计算量过大，
     # 所以，只取每个节点的top-K条边作为hypergraph的数据
-    _, idx = torch.topk(hadj, top, dim=0)
-    _, idy = torch.topk(hadj, top, dim=1)
+    _, idx= torch.topk(hadj, top, dim=0)                # (4,207)
+    _, idy = torch.topk(hadj, top, dim=1)             # (207,4)
 
-    base_mx_lie = torch.zeros([hadj.shape[0], hadj.shape[1]])
+    base_mx_lie = torch.zeros([hadj.shape[0], hadj.shape[1]])     # (207,207)
     for i in range(hadj.shape[0]):
         base_mx_lie[idx[:, i], i] = hadj[idx[:, i], i]
-    base_mx_hang = torch.zeros([hadj.shape[0], hadj.shape[1]])
+    base_mx_hang = torch.zeros([hadj.shape[0], hadj.shape[1]])    # (207,207)
     for j in range(hadj.shape[0]):
         base_mx_hang[j, idy[j, :]] = hadj[j, idy[j, :]]
 
-    base_mx = torch.where(base_mx_lie != 0, base_mx_lie, base_mx_hang)
+    base_mx = torch.where(base_mx_lie != 0, base_mx_lie, base_mx_hang)   # (207,207)
 
-    hadj = base_mx + torch.eye(hadj.shape[0])
+    hadj = base_mx + torch.eye(hadj.shape[0])           # (207,207)
     hadj = hadj.numpy()
 
-    # node_nums
-    n = hadj.shape[0]
-    # edge_nums
+    # node_nums: 207
+    n = hadj.shape[0] 
+    # edge_nums: 1083
     l = int((len(np.nonzero(hadj)[0])))
-    H = np.zeros((l, n))
-    H_a = np.zeros((l, n))
-    H_b = np.zeros((l, n))
+    H = np.zeros((l, n))                              # (1083, 207)
+    H_a = np.zeros((l, n))                            # (1083, 207)
+    H_b = np.zeros((l, n))                            # (1083, 207)
     #  the static features of the edges
-    lwjl = np.zeros((l,1))
+    lwjl = np.zeros((l,1))                            # (1083, 1)
     a=0
 
-    for i in range(hadj.shape[0]):
-        for j in range(hadj.shape[1]):
+    for i in range(hadj.shape[0]):  # 207
+        for j in range(hadj.shape[1]):  # 207
             if(hadj[i][j]!=0.0):
                 H[a, i] = 1.0
                 H[a, j] = 1.0
@@ -212,34 +215,34 @@ def load_hadj(pkl_filename,top_k):
                     lwjl[a, 0] = adj_mx[i,j]
                 a = a + 1
 
-    lwjl = 1.0-lwjl
+    lwjl = 1.0-lwjl                                 # (1083, 1)
 
-    W = np.ones(n)
+    W = np.ones(n)                                  # (207,)
 
-    DV = np.sum(H * W, axis=1)
-    DE = np.sum(H, axis=0)
-    DE_= np.power(DE, -1)
+    DV = np.sum(H * W, axis=1)                      # (1083, )
+    DE = np.sum(H, axis=0)                          # (207,)
+    DE_= np.power(DE, -1)                           # (207,)
     DE_[np.isinf(DE_)] = 0.
-    invDE = np.mat(np.diag(DE_))
-    DV2 = np.mat(np.diag(np.power(DV, -0.5)))
-    W = np.mat(np.diag(W))
-    H = np.mat(H)
-    HT = H.T
+    invDE = np.mat(np.diag(DE_))                    # (207,207)
+    DV2 = np.mat(np.diag(np.power(DV, -0.5)))       # (1083, 1083)
+    W = np.mat(np.diag(W))                          # (207,)
+    H = np.mat(H)                                   # (1083, 207)
+    HT = H.T                                        # (207, 1083)
 
-    HT = sp.coo_matrix(HT)
-    rowsum = np.array(HT.sum(1)).flatten()
-    d_inv = np.power(rowsum, -1).flatten()
-    d_inv[np.isinf(d_inv)] = 0.
-    d_mat = sp.diags(d_inv)
-    H_T_new = d_mat.dot(HT).astype(np.float32).todense()
+    HT = sp.coo_matrix(HT)                          # (207, 1083)
+    rowsum = np.array(HT.sum(1)).flatten()          # (207,)
+    d_inv = np.power(rowsum, -1).flatten()          
+    d_inv[np.isinf(d_inv)] = 0.                     # (207,207)
+    d_mat = sp.diags(d_inv)                         # (207,207)
+    H_T_new = d_mat.dot(HT).astype(np.float32).todense() # (207, 1083)
 
-    G0 = DV2 * H
-    G1 = invDE * HT * DV2
+    G0 = DV2 * H                                    # (1083, 207)
+    G1 = invDE * HT * DV2                           # (207, 1083)
 
     # ========================================================
-    n = adj_mx.shape[0]
-    l = int((len(np.nonzero(adj_mx)[0])))
-    H_all = np.zeros((l, n))
+    n = adj_mx.shape[0]            # 207                 
+    l = int((len(np.nonzero(adj_mx)[0])))  # 1083         
+    H_all = np.zeros((l, n))                        # (1072, 207)
     edge_1 = np.array([])
     edge_2 = np.array([])
     a=0
@@ -249,13 +252,13 @@ def load_hadj(pkl_filename,top_k):
             if(adj_mx[i][j]!=0.0):
                 H_all[a, i] = 1.0
                 H_all[a, j] = 1.0
-                edge_1 = np.hstack((edge_1, np.array([i])))
-                edge_2 = np.hstack((edge_2, np.array([j])))
+                edge_1 = np.hstack((edge_1, np.array([i])))  # (1722, 1722)
+                edge_2 = np.hstack((edge_2, np.array([j])))  # (1722, 1722)
                 a = a + 1
 
-    W_all = np.ones(n)
-    DV_all = np.sum(H_all * W_all, axis=1)
-    DE_all = np.sum(H_all, axis=0)
+    W_all = np.ones(n)                              # (207,)
+    DV_all = np.sum(H_all * W_all, axis=1)          # (1722, )
+    DE_all = np.sum(H_all, axis=0)                  # (207,)
 
     DE__all=np.power(DE_all, -1)
     DE__all[np.isinf(DE__all)] = 0.
