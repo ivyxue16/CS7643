@@ -14,7 +14,7 @@ class trainer():
         self.loss = util.masked_mae
         self.scaler = scaler
         self.clip = clip
-        lr_decay_rate=lr_de_rate
+        lr_decay_rate=lr_de_rate    # 0.97
         self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lambda epoch: lr_decay_rate ** epoch)
 
     def train(self, input, real_val):

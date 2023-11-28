@@ -51,27 +51,29 @@ def main():
 
     # H_a: (1083, 207)
     # H_b: (1083, 207)
-    # H_T_new: (207, 1083)
-    # lwjl: (64, 1, 1083, 1)
+    # HT: (207, 1083)
     # G0: (1083, 207)
-    # G1: (1083, 207)
-    
+    # G1: (207, 1083)
+    # indices: (2,1722)
+    # G0_all: (1722,207)
+    # G1_all: (207, 1722)
+
 
     dataloader = util.load_dataset(args.data, args.batch_size, args.batch_size, args.batch_size)  
     scaler = dataloader['scaler']
 
-    lwjl = (((lwjl.t()).unsqueeze(0)).unsqueeze(3)).repeat(args.batch_size, 1, 1, 1)
+    lwjl = (((lwjl.t()).unsqueeze(0)).unsqueeze(3)).repeat(args.batch_size, 1, 1, 1)    # torch.Size([64, 1, 1083, 1])
 
-    H_a = H_a.cuda()
-    H_b = H_b.cuda()
-    G0 = torch.tensor(G0).cuda()
-    G1 = torch.tensor(G1).cuda()
-    H_T_new = torch.tensor(H_T_new).cuda()
-    lwjl = lwjl.cuda()
-    indices = indices.cuda()
+    H_a = H_a.cuda()                            # (1083, 207)
+    H_b = H_b.cuda()                            # (1083, 207)
+    G0 = torch.tensor(G0).cuda()                # (1083, 207)
+    G1 = torch.tensor(G1).cuda()                # (207, 1083)
+    H_T_new = torch.tensor(H_T_new).cuda()      # (207, 1083)
+    lwjl = lwjl.cuda()                          # torch.Size([64, 1, 1083, 1])
+    indices = indices.cuda()                    # (2,1722)
 
-    G0_all = torch.tensor(G0_all).cuda()
-    G1_all = torch.tensor(G1_all).cuda()
+    G0_all = torch.tensor(G0_all).cuda()        # (1722,207)
+    G1_all = torch.tensor(G1_all).cuda()        # (207, 1722)
 
     engine = trainer(args.batch_size, scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                      args.learning_rate, args.weight_decay, supports, H_a, H_b, G0, G1, indices,
@@ -89,11 +91,11 @@ def main():
         t1 = time.time()
         dataloader['train_loader'].shuffle()
         for iter, (x, y) in enumerate(dataloader['train_loader'].get_iterator()):
-            trainx = torch.Tensor(x).cuda()
-            trainx= trainx.transpose(1, 3)
-            trainy = torch.Tensor(y).cuda()
-            trainy = trainy.transpose(1, 3)
-            metrics = engine.train(trainx, trainy[:,0,:,:])
+            trainx = torch.Tensor(x).cuda()         # torch.Size([64, 12, 207, 2])
+            trainx= trainx.transpose(1, 3)          # torch.Size([64, 2, 207, 12])
+            trainy = torch.Tensor(y).cuda()         # torch.Size([64, 12, 207, 2])
+            trainy = trainy.transpose(1, 3)         # torch.Size([64, 2, 207, 12])
+            metrics = engine.train(trainx, trainy[:,0,:,:])     # 
             train_loss.append(metrics[0])
             train_mape.append(metrics[1])
             train_rmse.append(metrics[2])

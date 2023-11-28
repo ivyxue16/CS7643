@@ -22,7 +22,7 @@ class DataLoader(object):
         self.ys = ys
 
     def shuffle(self):
-        permutation = np.random.permutation(self.size)
+        permutation = np.random.permutation(self.size)   # self.size = 24000
         xs, ys = self.xs[permutation], self.ys[permutation]
         self.xs = xs
         self.ys = ys
@@ -260,58 +260,67 @@ def load_hadj(pkl_filename,top_k):
     DV_all = np.sum(H_all * W_all, axis=1)          # (1722, )
     DE_all = np.sum(H_all, axis=0)                  # (207,)
 
-    DE__all=np.power(DE_all, -1)
-    DE__all[np.isinf(DE__all)] = 0.
-    invDE_all = np.mat(np.diag(DE__all))
-    DV2_all = np.mat(np.diag(np.power(DV_all, -0.5)))
-    W_all = np.mat(np.diag(W_all))
-    H_all = np.mat(H_all)
-    HT_all = H_all.T
+    DE__all=np.power(DE_all, -1)                    # (207,)
+    DE__all[np.isinf(DE__all)] = 0.                 # (207,)
+    invDE_all = np.mat(np.diag(DE__all))            # (207,207)
+    DV2_all = np.mat(np.diag(np.power(DV_all, -0.5)))  # (1722, 1722)
+    W_all = np.mat(np.diag(W_all))                  # (207,)
+    H_all = np.mat(H_all)                           # (1722, 207)
+    HT_all = H_all.T                                # (207, 1722)
 
-    HT_all = sp.coo_matrix(HT_all)
-    rowsum_all = np.array(HT_all.sum(1)).flatten()
-    d_inv_all = np.power(rowsum_all, -1).flatten()
-    d_inv_all[np.isinf(d_inv_all)] = 0.
-    d_mat_all = sp.diags(d_inv_all)
-    H_T_new_all = d_mat_all.dot(HT_all).astype(np.float32).todense()
+    HT_all = sp.coo_matrix(HT_all)                  # (207, 1722)
+    rowsum_all = np.array(HT_all.sum(1)).flatten()  # (207,)
+    d_inv_all = np.power(rowsum_all, -1).flatten()  # (207,)
+    d_inv_all[np.isinf(d_inv_all)] = 0.             # (207,207)
+    d_mat_all = sp.diags(d_inv_all)                 # (207,207)
+    H_T_new_all = d_mat_all.dot(HT_all).astype(np.float32).todense() # (207,1722)
 
-    G0_all = DV2_all * H_all
-    G1_all = invDE_all * HT_all * DV2_all
+    G0_all = DV2_all * H_all                        # (1722,207)
+    G1_all = invDE_all * HT_all * DV2_all           # (207, 1722)
 
-    coo_hadj = adj_mx - np.identity(n)
-    coo_hadj = sp.coo_matrix(coo_hadj)
+    coo_hadj = adj_mx - np.identity(n)              # (207,207)
+    coo_hadj = sp.coo_matrix(coo_hadj)              
     coo_hadj = coo_hadj.tocoo().astype(np.float32)
 
-    indices = torch.from_numpy(np.vstack((edge_1, edge_2)).astype(np.int64))
+    indices = torch.from_numpy(np.vstack((edge_1, edge_2)).astype(np.int64))  # (2,1722)
 
-    G0 = G0.astype(np.float32)
-    G1 = G1.astype(np.float32)
-    H = H.astype(np.float32)
-    HT = H.T.astype(np.float32)
-    H_T_new = torch.from_numpy(H_T_new.astype(np.float32))
-    H_a = torch.from_numpy(H_a.astype(np.float32))
-    H_b = torch.from_numpy(H_b.astype(np.float32))
-    lwjl = torch.from_numpy(lwjl.astype(np.float32))
+    G0 = G0.astype(np.float32)                      # (1083, 207)
+    G1 = G1.astype(np.float32)                      # (207, 1083)
+    H = H.astype(np.float32)                        # (1083, 207)
+    HT = H.T.astype(np.float32)                     # (207, 1083)
+    H_T_new = torch.from_numpy(H_T_new.astype(np.float32))    # (207, 1083)
+    H_a = torch.from_numpy(H_a.astype(np.float32))            # (1083, 207)
+    H_b = torch.from_numpy(H_b.astype(np.float32))            # (1083, 207)
+    lwjl = torch.from_numpy(lwjl.astype(np.float32))          # (1083, 1)
 
-    G0_all = G0_all.astype(np.float32)
-    G1_all = G1_all.astype(np.float32)
+    G0_all = G0_all.astype(np.float32)              # (1722, 207)
+    G1_all = G1_all.astype(np.float32)              # (207, 1722)
+    
+    return H_a, H_b, HT, lwjl, G0,G1, indices,G0_all,G1_all  
+    # H_a: (1083, 207)
+    # H_b: (1083, 207)
+    # HT: (207, 1083)
+    # G0: (1083, 207)
+    # G1: (207, 1083)
+    # indices: (2,1722)
+    # G0_all: (1722,207)
+    # G1_all: (207, 1722)
 
-    return H_a, H_b, HT, lwjl, G0,G1, indices,G0_all,G1_all
 
 
 def feature_node_to_edge(feature_node,H_a,H_b,operation="concat"):
-    feature_edge_a = torch.einsum('ncvl,wv->ncwl', (feature_node, H_a))
-    feature_edge_b = torch.einsum('ncvl,wv->ncwl', (feature_node, H_b))
+    feature_edge_a = torch.einsum('ncvl,wv->ncwl', (feature_node, H_a))     # feature_node: torch.Size([64, 40, 207, 13])    # H_a: torch.Size([1083, 207])
+    feature_edge_b = torch.einsum('ncvl,wv->ncwl', (feature_node, H_b))     # feature_node: torch.Size([64, 40, 207, 13])    # H_b: torch.Size([1083, 207])
     if operation == "concat":
-        feature_edge = torch.cat([feature_edge_a, feature_edge_b], dim=1)
+        feature_edge = torch.cat([feature_edge_a, feature_edge_b], dim=1)   # torch.Size([64, 80, 207, 13])
     elif  operation == "sum":
-        feature_edge = feature_edge_a + feature_edge_b
+        feature_edge = feature_edge_a + feature_edge_b                      # torch.Size([64, 40, 207, 13])
     elif operation == "subtract":
-        feature_edge = feature_edge_a - feature_edge_b
+        feature_edge = feature_edge_a - feature_edge_b                      # torch.Size([64, 40, 207, 13])
     return feature_edge
 
 
 def fusion_edge_node(x, x_h, H_T_new):
-    x_h_new = torch.einsum('ncvl,wv->ncwl', (x_h, H_T_new))
-    x = torch.cat([x, x_h_new], dim=1)
+    x_h_new = torch.einsum('ncvl,wv->ncwl', (x_h, H_T_new))                 # torch.Size([64, 20, 207, 9])
+    x = torch.cat([x, x_h_new], dim=1)                                      # torch.Size([64, 40, 207, 9])
     return x
