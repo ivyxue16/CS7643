@@ -1,3 +1,7 @@
+Proposed Model 8,9,10.
+
+
+
 # Spatio-Temporal Graph Convolutional Networks
 [![issues](https://img.shields.io/github/issues/hazdzz/STGCN)](https://github.com/hazdzz/STGCN/issues)
 [![forks](https://img.shields.io/github/forks/hazdzz/STGCN)](https://github.com/hazdzz/STGCN/network/members)
