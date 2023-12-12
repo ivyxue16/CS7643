@@ -1,0 +1,1 @@
+['Epoch: 100 | Lr: 0.00100000000000000002 |Train loss: 0.256919 | Val loss: 0.403299 | GPU occupy: 565.813760 MiB', 'Dataset metr-la | Test loss 0.496764 | MAE 7.135712 | RMSE 12.685500 | WMAPE 0.14046990 ']

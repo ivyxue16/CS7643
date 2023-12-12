@@ -1,0 +1,1 @@
+['0.30025047063827515 lr: 0.001 Ks: 3 weight_decay_rate: 0.00075 n_his: 12opt: rmspropbatch_size: 32', 'Epoch: 100 | Lr: 0.00100000000000000002 |Train loss: 0.220685 | Val loss: 0.300250 | GPU occupy: 742.606336 MiB\n', 'Dataset metr-la | Test loss 0.328503 | MAE 5.790060 | RMSE 10.419598 | WMAPE 0.11398011 ']

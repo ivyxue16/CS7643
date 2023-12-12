@@ -166,9 +166,10 @@ def train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter):
             optimizer.zero_grad()
             l.backward()
             optimizer.step()
-            scheduler.step()
+            # scheduler.step()
             l_sum += l.item() * y.shape[0]
             n += y.shape[0]
+        scheduler.step()
         val_loss = val(model, val_iter)
         # GPU memory usage
         gpu_mem_alloc = torch.cuda.max_memory_allocated() / 1000000 if torch.cuda.is_available() else 0
@@ -184,16 +185,22 @@ def train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter):
 
 
 def plot_curves(train_loss_history, val_loss_history):
-    
-    plt.plot(train_loss_history, "g-o" , val_loss_history , "r-o")
+
+    epochs = list(range(1, len(train_loss_history) + 1))
+    fig, ax = plt.subplots(figsize=(16, 8)) 
+
+    plt.plot(epochs, train_loss_history, marker='o', linestyle='-', colo11r='green', label='Train')
+    plt.plot(epochs, val_loss_history, marker='o', linestyle='-', color='red', label='Validation')
+
     plt.title("Loss (Mean Squared Error)")         
     plt.xlabel("Epoch")
-    plt.xticks(range(0,len(train_loss_history) ) )
-    plt.legend(["Train", "Validation"])
+    plt.xticks(np.arange(1, len(epochs) + 1, step=1))
+    plt.legend(loc='upper right')
+    # plt.legend(["Train", "Validation"])
     # if args.middle_layer == True:
     #     plt.savefig(str(args.stblock_num) + " " + str(args.Ks)  +'.png')
     # else:
-    plt.savefig('./figure/default.png')
+    plt.savefig('./figure/Default.png')
 
 @torch.no_grad()
 def val(model, val_iter):
@@ -213,6 +220,29 @@ def test(zscore, loss, model, test_iter, args):
     test_MAE, test_RMSE, test_WMAPE = utility.evaluate_metric(model, test_iter, zscore)
     print(f'Dataset {args.dataset:s} | Test loss {test_MSE:.6f} | MAE {test_MAE:.6f} | RMSE {test_RMSE:.6f} | WMAPE {test_WMAPE:.8f} ')
 
+
+
+
+def plot_losses(train_losses, val_losses):
+
+    
+    epochs = list(range(1, len(train_losses) + 1))
+
+    fig, ax = plt.subplots(figsize=(16, 8)) 
+
+    plt.plot(epochs, train_losses, marker='o', linestyle='-', colo11r='green', label='Train')
+    plt.plot(epochs, val_losses, marker='o', linestyle='-', color='red', label='Validation')
+
+    plt.xticks(np.arange(1, len(epochs) + 1, step=1), rotation=90)
+
+    plt.title('Loss(Mean Squared Error)')
+
+    plt.xlabel('Epoch')
+
+    plt.legend(loc='upper right')
+
+    plt.savefig('STGCN Learning Curves-Default.png')
+    # plt.show()
 
 
 # def plot_curves(train_loss_history, valid_loss_history):
@@ -268,7 +298,8 @@ if __name__ == "__main__":
     n_vertex, zscore, train_iter, val_iter, test_iter = data_preparate(args, device)    # n_vertex = 207, 
     loss, es, model, optimizer, scheduler = prepare_model(args, blocks, n_vertex)
     train_loss_history, val_loss_history = train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter)
-    
+    val_loss_history = [float(x) for x in val_loss_history]
     test(zscore, loss, model, test_iter, args)
-    # print(train_loss_list, val_loss_list)
-    plot_curves(train_loss_history, val_loss_history)
+    print(train_loss_history)
+    print(val_loss_history)
+    # plot_curves(train_loss_history, val_loss_history)

@@ -15,7 +15,7 @@ import torch.utils as utils
 import matplotlib.pyplot as plt
 
 from script import dataloader, utility, earlystopping
-from model import models, model_dialated
+from model import models
 
 #import nni
 
@@ -55,12 +55,11 @@ def get_parameters():
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--weight_decay_rate', type=float, default=0.0005, help='weight decay (L2 penalty)')
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--epochs', type=int, default=100, help='epochs, default as 100')
-    parser.add_argument('--opt', type=str, default='adam', help='optimizer, default as adam')
+    parser.add_argument('--epochs', type=int, default=2, help='epochs, default as 100')
+    # parser.add_argument('--opt', type=str, default='rmsprop', help='optimizer, default as adam')
     parser.add_argument('--step_size', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.95)
     parser.add_argument('--patience', type=int, default=30, help='early stopping patience')
-    parser.add_argument('--new_model', type=str, default="Dilated_stack_layer", help='model')
     args = parser.parse_args()
     print('Training configs: {}'.format(args))
 
@@ -118,9 +117,9 @@ def data_preparate(args, device):
     val = zscore.transform(val)
     test = zscore.transform(test)
 
-    x_train, y_train = dataloader.data_transform(train, args.n_his, args.n_pred, device)    # torch.Size([23976, 1, 12, 207]), torch.Size([23976, 207])
-    x_val, y_val = dataloader.data_transform(val, args.n_his, args.n_pred, device)          # torch.Size([5125, 1, 12, 207]), torch.Size([5125, 207])
-    x_test, y_test = dataloader.data_transform(test, args.n_his, args.n_pred, device)       # torch.Size([5125, 1, 12, 207]), torch.Size([5125, 207])
+    x_train, y_train = dataloader.data_transform_embeds(train, args.n_his, args.n_pred, device)    # torch.Size([23976, 1, 12, 207]), torch.Size([23976, 207])
+    x_val, y_val = dataloader.data_transform_embeds(val, args.n_his, args.n_pred, device)          # torch.Size([5125, 1, 12, 207]), torch.Size([5125, 207])
+    x_test, y_test = dataloader.data_transform_embeds(test, args.n_his, args.n_pred, device)       # torch.Size([5125, 1, 12, 207]), torch.Size([5125, 207])
 
     train_data = utils.data.TensorDataset(x_train, y_train)
     train_iter = utils.data.DataLoader(dataset=train_data, batch_size=args.batch_size, shuffle=False)
@@ -136,9 +135,9 @@ def prepare_model(args, blocks, n_vertex):
     es = earlystopping.EarlyStopping(mode='min', min_delta=0.0, patience=args.patience)
 
     if args.graph_conv_type == 'cheb_graph_conv':
-        model = model_dialated.STGCNGraphConv_dailated(args, blocks, n_vertex).to(device)
+        model = models.STGCNChebGraphConv(args, blocks, n_vertex).to(device)
     else:
-        model = model_dialated.STGCNGraphConv_dailated(args, blocks, n_vertex).to(device)
+        model = models.STGCNGraphConv(args, blocks, n_vertex).to(device)
 
     if args.opt == "rmsprop":
         optimizer = optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=args.weight_decay_rate)
@@ -186,38 +185,22 @@ def train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter):
 
 
 def plot_curves(train_loss_history, val_loss_history):
-    
-    plt.plot(train_loss_history, "g-o" , val_loss_history , "r-o")
+
+    epochs = list(range(1, len(train_loss_history) + 1))
+    fig, ax = plt.subplots(figsize=(16, 8)) 
+
+    plt.plot(epochs, train_loss_history, marker='o', linestyle='-', colo11r='green', label='Train')
+    plt.plot(epochs, val_loss_history, marker='o', linestyle='-', color='red', label='Validation')
+
     plt.title("Loss (Mean Squared Error)")         
     plt.xlabel("Epoch")
-    plt.xticks(range(0,len(train_loss_history) ) )
-    plt.legend(["Train", "Validation"])
-    plt.savefig("Epoch" + str(len(train_loss_history)) + str(args.new_model) + str(args.stblock_num) + " " + str(args.Ks)  +'.png')
+    plt.xticks(np.arange(1, len(epochs) + 1, step=1))
+    plt.legend(loc='upper right')
+    # plt.legend(["Train", "Validation"])
+    # if args.middle_layer == True:
+    #     plt.savefig(str(args.stblock_num) + " " + str(args.Ks)  +'.png')
     # else:
-    #     plt.savefig('./figure/default.png')
-
-
-# def plot_losses(train_losses, val_losses):
-    
-#     epochs = list(range(1, len(train_losses) + 1))
-
-#     fig, ax = plt.subplots(figsize=(16, 8)) 
-
-#     plt.plot(epochs, train_losses, marker='o', linestyle='-', color='green', label='Train')
-#     plt.plot(epochs, val_losses, marker='o', linestyle='-', color='red', label='Validation')
-
-#     plt.xticks(np.arange(1, len(epochs) + 1, step=1), rotation=90)
-
-#     plt.title('Loss(Mean Squared Error)')
-
-#     plt.xlabel('Epoch')
-
-#     plt.legend(loc='upper right')
-
-#     plt.savefig('./figure/STGCN Learning Curves-Stack Conv.png')
-#     plt.show()
-
-
+    plt.savefig('./figure/Default.png')
 
 @torch.no_grad()
 def val(model, val_iter):
@@ -240,6 +223,7 @@ def test(zscore, loss, model, test_iter, args):
 
 
 
+
 def plot_losses(train_losses, val_losses, lr, Ks, weight_decay_rate, n_his, opt, batch_size):
     
     epochs = list(range(1, len(train_losses) + 1))
@@ -257,12 +241,16 @@ def plot_losses(train_losses, val_losses, lr, Ks, weight_decay_rate, n_his, opt,
 
     plt.legend(loc='upper right')
     
-    fname = './figure/StackConv_ + ' + str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size)
+    fname = './figure/hyper/Embeds_ + ' + str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size)
 
 
     # plt.savefig('./figure/STGCN Learning Curves-Embeds + ' +  + '.png')
     plt.savefig(fname + '.png')
     
+
+
+    # plt.show()
+
 
 # def plot_curves(train_loss_history, valid_loss_history):
 #     """
@@ -314,96 +302,38 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     args, device, blocks = get_parameters()
-
-    lr = args.lr 
-    Ks = args.Ks
-    weight_decay_rate = args.weight_decay_rate
-    n_his = args.n_his
-    opt = args.opt
-    batch_size = args.batch_size
-
-    n_vertex, zscore, train_iter, val_iter, test_iter = data_preparate(args, device)    # n_vertex = 207, 
-    loss, es, model, optimizer, scheduler = prepare_model(args, blocks, n_vertex)
-    train_loss_history, val_loss_history = train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter)
-    test_MSE,test_MAE, test_RMSE, test_WMAPE = test(zscore, loss, model, test_iter, args)
-
-    fname = './figure/StackConv_ + ' + str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size)
-
-    gpu_mem_alloc = torch.cuda.max_memory_allocated() / 1000000 if torch.cuda.is_available() else 0
-                            
-                            
-    c = []
-    c.append(str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size))
-    c.append(str('Epoch: 100 | Lr: {:.20f} |Train loss: {:.6f} | Val loss: {:.6f} | GPU occupy: {:.6f} MiB'.format(lr, train_loss_history[-1], val_loss_history[-1],gpu_mem_alloc)) + '\n')
-    
-    c.append(str(f'Dataset {args.dataset:s} | Test loss {test_MSE:.6f} | MAE {test_MAE:.6f} | RMSE {test_RMSE:.6f} | WMAPE {test_WMAPE:.8f} '))
-    
-    with open (fname+'.txt' , "w") as f:
-        f.write(str(c))
-    plot_losses(train_loss_history, val_loss_history, lr, Ks, weight_decay_rate, n_his, opt,batch_size)
-
-    # test(zscore, loss, model, test_iter, args)
-    # # print(train_loss_list, val_loss_list)
-    # val_loss_history = [float(x) for x in val_loss_history]
-    # print(train_loss_history)
-    # print(val_loss_history)
-    # plot_losses(train_loss_history, val_loss_history)
-
-    # args, device, blocks = get_parameters()
-    # n_vertex, zscore, train_iter, val_iter, test_iter = data_preparate(args, device)    # n_vertex = 207, 
-    # loss, es, model, optimizer, scheduler = prepare_model(args, blocks, n_vertex)
-    # train_loss_history, val_loss_history = train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter)
-    # val_loss_history = [float(x) for x in val_loss_history]
-    # test(zscore, loss, model, test_iter, args)
-    # print(train_loss_history)
-    # print(val_loss_history)
-    # plot_curves(train_loss_history, val_loss_history)
-
-    # loss, es, model, optimizer, scheduler = prepare_model(args, blocks, n_vertex)
-    # train_loss_history, val_loss_history = train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter)
-    # val_loss_history = [float(x) for x in val_loss_history]
-    # test_MSE,test_MAE, test_RMSE, test_WMAPE = test(zscore, loss, model, test_iter, args)
-    
-
-
-
-
-    # args, device, blocks = get_parameters()
-    # for batch_size in [16,32,64,128]:
-    #     args.batch_size = batch_size
-    #     # for lr in [0.001, 0.0015, 0.002, 0.03, 0.01]:   
-    #     for lr in [0.001]:
-    #         args.lr = lr
-    #         for Ks in [3]:
-    #             args.Ks = Ks
-    #             # for weight_decay_rate in [0.0005, 0.00075, 0.001]:
-    #             for weight_decay_rate in [0.0005]:
-    #                 args.weight_decay_rate = weight_decay_rate
-    #                 for n_his in [12,15,9,18,21,24]:
-    #                     args.his = n_his
-    #                     n_vertex, zscore, train_iter, val_iter, test_iter = data_preparate(args, device)    # n_vertex = 207, 
-    #                     for opt in ['adam','rmsprop', 'adamw']:
-    #                         args.opt = opt
-    #                         # print(args)
-    #                         loss, es, model, optimizer, scheduler = prepare_model(args, blocks, n_vertex)
-    #                         train_loss_history, val_loss_history = train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter)
-    #                         val_loss_history = [float(x) for x in val_loss_history]
-    #                         test_MSE,test_MAE, test_RMSE, test_WMAPE = test(zscore, loss, model, test_iter, args)
-    #                         # print(train_loss_history)
-    #                         # print(val_loss_history)
+    for batch_size in [32,64]:
+        args.batch_size = batch_size
+        for lr in [0.001, 0.0015, 0.002, 0.03, 0.01]:   
+            args.lr = lr
+            for Ks in [2,3]:
+                args.Ks = Ks
+                for weight_decay_rate in [0.0005, 0.00075, 0.001]:
+                    args.weight_decay_rate = weight_decay_rate
+                    for n_his in [15,9,18,21,24]:
+                        args.his = n_his
+                        n_vertex, zscore, train_iter, val_iter, test_iter = data_preparate(args, device)    # n_vertex = 207, 
+                        for opt in ['adam','rmsprop', 'adamw']:
+                            args.opt = opt
+                            # print(args)
+                            loss, es, model, optimizer, scheduler = prepare_model(args, blocks, n_vertex)
+                            train_loss_history, val_loss_history = train(loss, args, optimizer, scheduler, es, model, train_iter, val_iter)
+                            val_loss_history = [float(x) for x in val_loss_history]
+                            test_MSE,test_MAE, test_RMSE, test_WMAPE = test(zscore, loss, model, test_iter, args)
+                            # print(train_loss_history)
+                            # print(val_loss_history)
             
-    #                         fname = './figure/hyper/StackConv_ + ' + str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size)
+                            fname = './figure/hyper/Embeds_ + ' + str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size)
 
 
-    #                         gpu_mem_alloc = torch.cuda.max_memory_allocated() / 1000000 if torch.cuda.is_available() else 0
+                            gpu_mem_alloc = torch.cuda.max_memory_allocated() / 1000000 if torch.cuda.is_available() else 0
                             
                             
-    #                         c = []
-    #                         c.append(str(val_loss_history[-1]) + " lr: " + str(lr) + " Ks: " + str(Ks) + " weight_decay_rate: " + str(weight_decay_rate) + " n_his: " + str(n_his) + "opt: " + opt + 'batch_size: ' + str(batch_size))
-    #                         c.append(str('Epoch: 100 | Lr: {:.20f} |Train loss: {:.6f} | Val loss: {:.6f} | GPU occupy: {:.6f} MiB'.format(lr, train_loss_history[-1], val_loss_history[-1],gpu_mem_alloc)) + '\n')
+                            c = []
+                            c.append(str('Epoch: 100 | Lr: {:.20f} |Train loss: {:.6f} | Val loss: {:.6f} | GPU occupy: {:.6f} MiB'.format(lr, train_loss_history[-1], val_loss_history[-1],gpu_mem_alloc)) + '\n')
                             
-    #                         c.append(str(f'Dataset {args.dataset:s} | Test loss {test_MSE:.6f} | MAE {test_MAE:.6f} | RMSE {test_RMSE:.6f} | WMAPE {test_WMAPE:.8f} '))
+                            c.append(str(f'Dataset {args.dataset:s} | Test loss {test_MSE:.6f} | MAE {test_MAE:.6f} | RMSE {test_RMSE:.6f} | WMAPE {test_WMAPE:.8f} '))
                             
-    #                         with open (fname+'.txt' , "w") as f:
-    #                             f.write(str(c))
-    #                         plot_losses(train_loss_history, val_loss_history, lr, Ks, weight_decay_rate, n_his, opt,batch_size)
+                            with open (fname+'.txt' , "w") as f:
+                                f.write(str(c))
+                            plot_losses(train_loss_history, val_loss_history, lr, Ks, weight_decay_rate, n_his, opt,batch_size)
